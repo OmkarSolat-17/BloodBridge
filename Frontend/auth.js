@@ -1102,24 +1102,12 @@
       // SEND LOGIN REQUEST TO FLASK
       // --------------------------------------------------------
 
-      console.log('HOSPITAL LOGIN DEBUG:', {
-  role,
-  email,
-  passwordLength: password.length,
-  password
-});
-
       const data = await BloodBridgeAPI.post(
         '/auth/login',
         {
           email: email,
           password: password
         }
-      );
-
-      console.log(
-        'BloodBridge backend login response:',
-        data
       );
 
       // --------------------------------------------------------

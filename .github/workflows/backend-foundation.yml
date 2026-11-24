@@ -1,0 +1,39 @@
+name: Backend foundation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: bloodbridge_test
+          POSTGRES_USER: bloodbridge_test
+          POSTGRES_PASSWORD: synthetic-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bloodbridge_test -d bloodbridge_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      BLOODBRIDGE_TEST_POSTGRES_URL: postgresql://bloodbridge_test:synthetic-ci-password@127.0.0.1:5432/bloodbridge_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        run: python -m pip install -r Backend/requirements.txt
+      - name: Run isolated foundation tests
+        run: python -m unittest discover -s Backend/tests -v
+      - name: Check frontend JavaScript syntax
+        run: for file in Frontend/*.js; do node --check "$file"; done

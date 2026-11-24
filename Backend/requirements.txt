@@ -1,5 +1,8 @@
-Flask
-Flask-CORS
-Flask-SQLAlchemy
-Flask-JWT-Extended
-python-dotenv
+Flask>=3.1,<4
+Flask-Cors>=6,<7
+Flask-SQLAlchemy>=3.1,<4
+Flask-JWT-Extended>=4.7,<5
+python-dotenv>=1,<2
+psycopg[binary]>=3.2,<4
+requests>=2.32,<3
+alembic>=1.13,<2

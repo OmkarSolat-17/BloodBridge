@@ -1,0 +1,18 @@
+# Local databases and generated Python files
+*.db
+*.sqlite
+*.sqlite3
+instance/
+__pycache__/
+*.py[cod]
+
+# Environments, secrets and developer tools
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
