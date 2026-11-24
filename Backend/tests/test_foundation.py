@@ -55,7 +55,9 @@ class FoundationTests(unittest.TestCase):
             for method in rule.methods:
                 if (rule.endpoint == "access.organization_access" and method in {"GET", "HEAD"}) or (
                     rule.endpoint == "synthetic_requests.create" and method == "POST"
-                ) or (rule.endpoint == "synthetic_requests.read" and method in {"GET", "HEAD"}):
+                ) or (rule.endpoint == "synthetic_requests.read" and method in {"GET", "HEAD"}) or (
+                    rule.endpoint in {"synthetic_inventory.add_receipt", "synthetic_inventory.grant_bank", "synthetic_inventory.reserve_request"} and method == "POST"
+                ) or (rule.endpoint == "synthetic_inventory.read_stock" and method in {"GET", "HEAD"}):
                     continue  # Separately exercised by endpoint-specific tests.
                 with self.subTest(url=url, method=method):
                     response = self.client.open(url, method=method)

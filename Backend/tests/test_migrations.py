@@ -68,7 +68,7 @@ class MigrationIntegrationTests(unittest.TestCase):
         tables = inspect(self.connection).get_table_names(schema="bloodbridge_private")
         self.assertTrue({"alembic_version", "identities", "organizations", "memberships"}.issubset(tables))
         revision = self.connection.execute(text("SELECT version_num FROM bloodbridge_private.alembic_version")).scalar_one()
-        self.assertEqual(revision, "0003_synthetic_requests")
+        self.assertEqual(revision, "0004_synthetic_inventory")
         result = alembic(self.raw_url)
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -111,7 +111,7 @@ class MigrationIntegrationTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Downgrade is disabled", result.stderr)
         version = self.connection.execute(text("SELECT version_num FROM bloodbridge_private.alembic_version")).scalar_one()
-        self.assertEqual(version, "0003_synthetic_requests")
+        self.assertEqual(version, "0004_synthetic_inventory")
 
 
 if __name__ == "__main__":

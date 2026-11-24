@@ -30,6 +30,7 @@ from routes.emergency_requests import (
 from routes.matching import matching_bp
 from routes.predictions import prediction_bp
 from routes.synthetic_requests import synthetic_requests_bp
+from routes.synthetic_inventory import synthetic_inventory_bp
 from security.supabase_identity import SupabaseIdentityProvider
 
 
@@ -75,6 +76,7 @@ def create_app(config=None):
     JWTManager(app)
     app.register_blueprint(access_bp)
     app.register_blueprint(synthetic_requests_bp)
+    app.register_blueprint(synthetic_inventory_bp)
     for blueprint in (
         donor_bp, appointment_bp, blood_bank_bp, matching_bp,
         emergency_request_bp, auth_bp, donor_alert_bp, prediction_bp,
@@ -106,6 +108,11 @@ def create_app(config=None):
             request.endpoint == "synthetic_requests.create" and request.method == "POST"
         ) or (
             request.endpoint == "synthetic_requests.read" and request.method in ("GET", "HEAD")
+        ) or (
+            request.endpoint in {"synthetic_inventory.add_receipt", "synthetic_inventory.grant_bank", "synthetic_inventory.reserve_request"}
+            and request.method == "POST"
+        ) or (
+            request.endpoint == "synthetic_inventory.read_stock" and request.method in ("GET", "HEAD")
         )
         if not allowed:
             return jsonify(
