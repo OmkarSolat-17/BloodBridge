@@ -1,7 +1,7 @@
 """Resolve a Supabase access token through the Auth server.
 
-Not yet wired to an HTTP endpoint: the legacy API remains locked. A verified
-identity is not a permission grant; application authorization is separate.
+The legacy API remains locked. A verified identity is not a permission grant;
+application authorization is separate.
 """
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -40,7 +40,9 @@ class SupabaseIdentityProvider:
             raise ValueError("Use a publishable key, not a Supabase secret key")
         self._url = project_url.rstrip("/") + "/auth/v1/user"
         self._key = publishable_key
-        self._session = session or requests.Session()
+        # Default to requests' per-call client instead of sharing a mutable
+        # Session across Flask threads. Tests may inject a local mock.
+        self._session = session or requests
 
     def verify(self, token):
         if (

@@ -1,7 +1,6 @@
-"""Unwired, organization-scoped authorization primitive.
+"""Organization-scoped authorization for verified identities.
 
-A caller MUST verify identity using the configured identity provider first.
-Nothing here exposes a route or implements onboarding/verification.
+This does not implement onboarding, organization verification, or clinical rules.
 """
 from uuid import UUID
 
@@ -26,28 +25,34 @@ _MEMBERSHIP = text("""
 """)
 
 
-def is_allowed(connection, identity, organization_id, action):
-    """Return False unless a verified identity has an active scoped membership.
+def allowed_actions(connection, identity, organization_id):
+    """Return the current organization's actions from one membership snapshot.
 
-    Database errors propagate: callers must map them to an unavailable response,
-    never allow access on error. No endpoint may trust a role supplied by a user.
+    Errors propagate; callers must fail closed. The caller must have verified
+    identity with the configured identity provider, not client-provided claims.
     """
-    expected = _POLICY.get(action) if isinstance(action, str) else None
-    if expected is None or not isinstance(identity, VerifiedIdentity):
-        return False
+    if not isinstance(identity, VerifiedIdentity):
+        return ()
     try:
         subject_id = UUID(identity.subject)
         org_id = UUID(str(organization_id))
     except (TypeError, ValueError, AttributeError):
-        return False
+        return ()
     row = connection.execute(
         _MEMBERSHIP, {"subject_id": subject_id, "organization_id": org_id}
     ).mappings().one_or_none()
-    if row is None:
-        return False
-    return (
+    if row is None or not (
         row["identity_status"] == "active"
         and row["organization_status"] == "verified"
         and row["membership_status"] == "active"
-        and (row["organization_kind"], row["role"]) == expected
-    )
+    ):
+        return ()
+    actual = (row["organization_kind"], row["role"])
+    return tuple(action for action, expected in _POLICY.items() if actual == expected)
+
+
+def is_allowed(connection, identity, organization_id, action):
+    """Return False unless the verified identity has the named scoped action."""
+    if not isinstance(action, str) or action not in _POLICY:
+        return False
+    return action in allowed_actions(connection, identity, organization_id)

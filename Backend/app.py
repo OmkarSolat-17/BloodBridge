@@ -14,6 +14,7 @@ from sqlalchemy import inspect
 from database.database import db
 # Import models so SQLAlchemy knows the schema before the explicit init command.
 from database import models  # noqa: F401
+from routes.access import access_bp
 from routes.appointments import appointment_bp
 from routes.auth import auth_bp
 from routes.blood_banks import (
@@ -28,6 +29,7 @@ from routes.emergency_requests import (
 )
 from routes.matching import matching_bp
 from routes.predictions import prediction_bp
+from security.supabase_identity import SupabaseIdentityProvider
 
 
 def create_app(config=None):
@@ -40,6 +42,8 @@ def create_app(config=None):
         ),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         JWT_SECRET_KEY=os.environ.get("BLOODBRIDGE_JWT_SECRET"),
+        SUPABASE_PROJECT_URL=os.environ.get("SUPABASE_PROJECT_URL"),
+        SUPABASE_PUBLISHABLE_KEY=os.environ.get("SUPABASE_PUBLISHABLE_KEY"),
     )
     if config:
         app.config.update(config)
@@ -57,8 +61,16 @@ def create_app(config=None):
             "32 characters. Do not use a shared example or commit the secret."
         )
 
+    provider_url = app.config.get("SUPABASE_PROJECT_URL")
+    provider_key = app.config.get("SUPABASE_PUBLISHABLE_KEY")
+    if bool(provider_url) != bool(provider_key):
+        raise RuntimeError("Configure both SUPABASE_PROJECT_URL and SUPABASE_PUBLISHABLE_KEY, or neither.")
+    if provider_url and provider_key:
+        app.extensions["bloodbridge_identity_provider"] = SupabaseIdentityProvider(provider_url, provider_key)
+
     db.init_app(app)
     JWTManager(app)
+    app.register_blueprint(access_bp)
     for blueprint in (
         donor_bp, appointment_bp, blood_bank_bp, matching_bp,
         emergency_request_bp, auth_bp, donor_alert_bp, prediction_bp,
@@ -84,12 +96,21 @@ def create_app(config=None):
         # Fail closed, including aliases: authentication alone is not sufficient
         # because most legacy routes lack role/ownership checks. Do not remove
         # this guard until each endpoint is replaced and security-tested.
-        if request.endpoint not in (None, "health_check"):
+        allowed = request.endpoint in (None, "health_check") or (
+            request.endpoint == "access.organization_access" and request.method in ("GET", "HEAD")
+        )
+        if not allowed:
             return jsonify(
                 status="unavailable",
                 message="This endpoint is temporarily disabled during the security rebuild.",
             ), 503
         return None
+
+    @app.after_request
+    def prohibit_access_caching(response):
+        if request.path.startswith("/api/v1/organizations/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.get("/api/health")
     def health_check():

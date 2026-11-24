@@ -4,13 +4,13 @@
 
 BloodBridge aims to support authorized blood-bank and donor coordination. This repository is being rebuilt towards a real-world pilot, starting with emergency requests. Clinical, legal, privacy, security and operational review will be required before that pilot.
 
-## Current milestone: local migrations and authorization foundation
+## Current milestone: authenticated access check
 
 - PostgreSQL is the target database, with Supabase as an optional managed PostgreSQL host; the application uses the psycopg 3 driver. SQLite is for isolated local tests only.
-- A Supabase Auth identity-verification adapter is implemented and tested with mocked responses, but is **not connected to any API route** and has not been tested against a real Supabase project. Identity alone does not grant a role or access to records.
+- A Supabase Auth identity-verification adapter and PostgreSQL membership check are connected to a single read-only access-check endpoint. The identity-provider tests use mocked responses; no real Supabase project has been tested. Identity alone does not grant a role or access to records.
 - Backend uses an application factory with an explicit, unique JWT secret and configurable database URL. The secret is still required by the legacy JWT setup; it is not a Supabase service key.
 - Startup does not create or migrate a database. A local-only Alembic migration creates a preliminary PostgreSQL identity, organization and membership schema; remote migrations are blocked.
-- A default-deny, organization-scoped authorization primitive has unit and local PostgreSQL tests, but is **not wired to HTTP endpoints**. No onboarding or verification workflows have been implemented.
+- The access-check endpoint uses a default-deny, organization-scoped authorization primitive. No onboarding, organization verification or operational emergency workflows have been implemented.
 - **Every legacy API endpoint except liveness currently returns HTTP 503.** This includes login and registration: authentication and permissions have not yet been rebuilt.
 - `/api/health` is liveness only; it reports `ready: false` and does not certify readiness.
 - Flask debug and permissive CORS are not enabled by this entry point. The frontend's localhost API calls and mixed simulated/backend flows still need to be replaced.
@@ -38,7 +38,7 @@ Windows PowerShell instead of the `export` line:
 $env:BLOODBRIDGE_JWT_SECRET = python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Open `http://127.0.0.1:5000/api/health` for a liveness response. No data routes are available yet. The development server is not a production server. A new secret on each restart invalidates existing tokens; deployment requires a unique securely managed, persistent secret and a rotation plan.
+Open `http://127.0.0.1:5000/api/health` for a liveness response. Only the read-only access check described below is available; operational routes remain disabled. The development server is not a production server. A new secret on each restart invalidates existing legacy JWT tokens; deployment requires a unique securely managed, persistent secret and a rotation plan.
 
 ### Optional: create an empty local database
 
@@ -53,7 +53,7 @@ Set `BLOODBRIDGE_DATABASE_URL` before running the command to choose a database. 
 
 ## PostgreSQL and Supabase
 
-See [MILESTONE-02.md](MILESTONE-02.md) for the stack decision and [MILESTONE-03.md](MILESTONE-03.md) for migration and permissions details. `BLOODBRIDGE_DATABASE_URL` accepts PostgreSQL URLs and uses psycopg 3. **Do not run this application against a production Supabase database:** the schema and authorization have not been reviewed or connected to live endpoints. No Supabase connection has been tested, and no project credentials are needed.
+See [MILESTONE-02.md](MILESTONE-02.md) for the stack decision, [MILESTONE-03.md](MILESTONE-03.md) for migration details, and [MILESTONE-04.md](MILESTONE-04.md) for the access-check endpoint. `BLOODBRIDGE_DATABASE_URL` accepts PostgreSQL URLs and uses psycopg 3. **Do not run this application against a production Supabase database:** the schema and authorization have not been reviewed for deployment. No Supabase connection has been tested, and no project credentials are needed for the test suite.
 
 The new migration is restricted to disposable **local** PostgreSQL databases named `bloodbridge_test` or `bloodbridge_dev`; it creates tables and the Alembic version table in `bloodbridge_private`. Set a dedicated migration URL and run:
 
@@ -63,6 +63,12 @@ python -m alembic -c Backend/alembic.ini upgrade head
 ```
 
 Use a dedicated migration credential; the URL is separate from the application's database URL. Never commit a password. See the milestone for setup and warnings. The optional PostgreSQL integration tests use `BLOODBRIDGE_TEST_POSTGRES_URL` and **apply migrations** to a dedicated localhost database named `bloodbridge_test`; they are skipped when that variable is absent. The CI workflow defines its own synthetic PostgreSQL service.
+
+## Read-only access check
+
+`GET /api/v1/organizations/<organization-uuid>/access` requires a bearer token. It checks that identity with Supabase Auth and looks up active membership for that exact organization in PostgreSQL. The returned action names are **policy results only**: the corresponding emergency and inventory operations are not available yet and must independently re-check authorization when implemented.
+
+The endpoint returns 401 for missing/invalid credentials, 403 for no applicable membership, and 503 if the identity provider or database is unavailable. Responses use `Cache-Control: no-store`. Without both `SUPABASE_PROJECT_URL` and `SUPABASE_PUBLISHABLE_KEY`, the endpoint returns 503 for authenticated requests; only a publishable key should be used. Local PostgreSQL membership records and a test account are also required. No trusted onboarding or real Supabase integration test exists yet. See [MILESTONE-04.md](MILESTONE-04.md); don't commit keys or share them in chat.
 
 ## Sensitive data and Git history
 
