@@ -4,13 +4,14 @@
 
 BloodBridge aims to support authorized blood-bank and donor coordination. This repository is being rebuilt towards a real-world pilot, starting with emergency requests. Clinical, legal, privacy, security and operational review will be required before that pilot.
 
-## Current milestone: synthetic local onboarding
+## Current milestone: synthetic emergency-request creation
 
 - PostgreSQL is the target database, with Supabase as an optional managed PostgreSQL host; the application uses the psycopg 3 driver. SQLite is for isolated local tests only.
 - A Supabase Auth identity-verification adapter and PostgreSQL membership check are connected to a single read-only access-check endpoint. The identity-provider tests use mocked responses; no real Supabase project has been tested. Identity alone does not grant a role or access to records.
 - Backend uses an application factory with an explicit, unique JWT secret and configurable database URL. The secret is still required by the legacy JWT setup; it is not a Supabase service key.
 - Startup does not create or migrate a database. A local-only Alembic migration creates a preliminary PostgreSQL identity, organization and membership schema; remote migrations are blocked.
-- The access-check endpoint uses a default-deny, organization-scoped authorization primitive. A new local-only CLI can create and approve **synthetic** organizations and memberships; it is not a verified administrator workflow or suitable for real data. No operational emergency workflow has been implemented.
+- The access-check endpoint uses a default-deny, organization-scoped authorization primitive. A local-only CLI can create and approve **synthetic** organizations and memberships; it is not a verified administrator workflow or suitable for real data.
+- A guarded synthetic-only API can create and read minimal synthetic emergency requests, with organization authorization, idempotent retries and a transactionally recorded audit event. There is no matching, stock reservation, alert delivery, cancellation or real-patient workflow.
 - **Every legacy API endpoint except liveness currently returns HTTP 503.** This includes login and registration: authentication and permissions have not yet been rebuilt.
 - `/api/health` is liveness only; it reports `ready: false` and does not certify readiness.
 - Flask debug and permissive CORS are not enabled by this entry point. The frontend's localhost API calls and mixed simulated/backend flows still need to be replaced.
@@ -38,7 +39,7 @@ Windows PowerShell instead of the `export` line:
 $env:BLOODBRIDGE_JWT_SECRET = python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Open `http://127.0.0.1:5000/api/health` for a liveness response. Only the read-only access check described below is available; operational routes remain disabled. The development server is not a production server. A new secret on each restart invalidates existing legacy JWT tokens; deployment requires a unique securely managed, persistent secret and a rotation plan.
+Open `http://127.0.0.1:5000/api/health` for a liveness response. The read-only access check and an explicitly enabled local synthetic request API are the only new routes; legacy operational routes remain disabled. The development server is not a production server. A new secret on each restart invalidates existing legacy JWT tokens; deployment requires a unique securely managed, persistent secret and a rotation plan.
 
 ### Optional: create an empty local database
 
@@ -66,9 +67,13 @@ Use a dedicated migration credential; the URL is separate from the application's
 
 ## Read-only access check
 
-`GET /api/v1/organizations/<organization-uuid>/access` requires a bearer token. It checks that identity with Supabase Auth and looks up active membership for that exact organization in PostgreSQL. The returned action names are **policy results only**: the corresponding emergency and inventory operations are not available yet and must independently re-check authorization when implemented.
+`GET /api/v1/organizations/<organization-uuid>/access` requires a bearer token. It checks that identity with Supabase Auth and looks up active membership for that exact organization in PostgreSQL. The returned action names are **policy results only**: the synthetic request API re-checks authorization; real emergency and inventory operations are not available.
 
 The endpoint returns 401 for missing/invalid credentials, 403 for no applicable membership, and 503 if the identity provider or database is unavailable. Responses use `Cache-Control: no-store`. Without both `SUPABASE_PROJECT_URL` and `SUPABASE_PUBLISHABLE_KEY`, the endpoint returns 503 for authenticated requests; only a publishable key should be used. Local PostgreSQL membership records and a test account are also required. No trusted onboarding or real Supabase integration test exists yet. See [MILESTONE-04.md](MILESTONE-04.md); don't commit keys or share them in chat.
+
+## Synthetic request API
+
+For local synthetic development only, `POST /api/v1/organizations/<uuid>/synthetic-requests` creates a minimal request and `GET /api/v1/organizations/<uuid>/synthetic-requests/<request-uuid>` reads it. Explicit opt-in, local PostgreSQL and an authorized hospital identity are required. POST requires a UUID `Idempotency-Key`; repeating the same input returns the original request. No patient details are accepted. See [MILESTONE-06.md](MILESTONE-06.md) for setup, test limitations and safety boundaries.
 
 ## Synthetic local onboarding
 

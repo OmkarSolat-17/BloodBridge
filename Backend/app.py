@@ -29,6 +29,7 @@ from routes.emergency_requests import (
 )
 from routes.matching import matching_bp
 from routes.predictions import prediction_bp
+from routes.synthetic_requests import synthetic_requests_bp
 from security.supabase_identity import SupabaseIdentityProvider
 
 
@@ -44,6 +45,8 @@ def create_app(config=None):
         JWT_SECRET_KEY=os.environ.get("BLOODBRIDGE_JWT_SECRET"),
         SUPABASE_PROJECT_URL=os.environ.get("SUPABASE_PROJECT_URL"),
         SUPABASE_PUBLISHABLE_KEY=os.environ.get("SUPABASE_PUBLISHABLE_KEY"),
+        BLOODBRIDGE_ENABLE_SYNTHETIC_REQUESTS=os.environ.get("BLOODBRIDGE_ENABLE_SYNTHETIC_REQUESTS", "0"),
+        MAX_CONTENT_LENGTH=4096,
     )
     if config:
         app.config.update(config)
@@ -71,6 +74,7 @@ def create_app(config=None):
     db.init_app(app)
     JWTManager(app)
     app.register_blueprint(access_bp)
+    app.register_blueprint(synthetic_requests_bp)
     for blueprint in (
         donor_bp, appointment_bp, blood_bank_bp, matching_bp,
         emergency_request_bp, auth_bp, donor_alert_bp, prediction_bp,
@@ -98,6 +102,10 @@ def create_app(config=None):
         # this guard until each endpoint is replaced and security-tested.
         allowed = request.endpoint in (None, "health_check") or (
             request.endpoint == "access.organization_access" and request.method in ("GET", "HEAD")
+        ) or (
+            request.endpoint == "synthetic_requests.create" and request.method == "POST"
+        ) or (
+            request.endpoint == "synthetic_requests.read" and request.method in ("GET", "HEAD")
         )
         if not allowed:
             return jsonify(

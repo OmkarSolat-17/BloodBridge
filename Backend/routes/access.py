@@ -60,5 +60,5 @@ def organization_access(organization_id):
     return jsonify(
         status="success", organization_id=str(organization_id),
         policy_actions=list(actions),
-        note="Policy check only; corresponding operations are not yet available.",
+        note="Policy check only; real-world operations are not yet available.",
     )

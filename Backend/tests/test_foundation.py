@@ -53,8 +53,10 @@ class FoundationTests(unittest.TestCase):
             url = re.sub(r"<uuid:[^>]+>", "00000000-0000-0000-0000-000000000001", rule.rule)
             url = re.sub(r"<[^>]+>", "1", url)
             for method in rule.methods:
-                if rule.endpoint == "access.organization_access" and method in {"GET", "HEAD"}:
-                    continue  # Separately exercised by test_access_api.
+                if (rule.endpoint == "access.organization_access" and method in {"GET", "HEAD"}) or (
+                    rule.endpoint == "synthetic_requests.create" and method == "POST"
+                ) or (rule.endpoint == "synthetic_requests.read" and method in {"GET", "HEAD"}):
+                    continue  # Separately exercised by endpoint-specific tests.
                 with self.subTest(url=url, method=method):
                     response = self.client.open(url, method=method)
                     self.assertEqual(response.status_code, 503)
